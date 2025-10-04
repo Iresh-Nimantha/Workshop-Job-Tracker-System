@@ -64,7 +64,7 @@ export default function EmployeeRegistrationSection({ onEmployeeAdded }) {
           ? jobsRes.data
           : [];
 
-        setAllEmployees;
+        setAllEmployees(employeesData);
         setRecentEmployees(
           employeesData
             .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
@@ -92,17 +92,20 @@ export default function EmployeeRegistrationSection({ onEmployeeAdded }) {
         email,
         username,
         password,
-        role_id: Number(roleId), // 1=admin, 2=mechanic
+        role_id: Number(roleId),
       };
-      const response = await api.post("/users", userData); // Adjust route if needed
+
+      const response = await api.post("/users", userData);
       const newEmployee = response.data;
 
+      // Reset form
       setName("");
       setEmail("");
       setUsername("");
       setPassword("");
       setRoleId("1");
 
+      // Update employee lists
       setAllEmployees((prev) => [newEmployee, ...prev]);
       setRecentEmployees((prev) => [newEmployee, ...prev].slice(0, 5));
       if (onEmployeeAdded) onEmployeeAdded(newEmployee);
@@ -156,7 +159,7 @@ export default function EmployeeRegistrationSection({ onEmployeeAdded }) {
     setEmail(employee.email);
     setUsername(employee.username);
     setRoleId(employee.role_id?.toString() || "1");
-    setPassword(""); // Don't pre-fill password for security
+    setPassword("");
   };
 
   // Update employee
@@ -171,10 +174,7 @@ export default function EmployeeRegistrationSection({ onEmployeeAdded }) {
         role_id: Number(roleId),
       };
 
-      // Only include password if it's provided
-      if (password.trim()) {
-        updateData.password = password;
-      }
+      if (password.trim()) updateData.password = password;
 
       const response = await api.put(
         `/users/${currentEmployee.id}`,
@@ -612,7 +612,9 @@ export default function EmployeeRegistrationSection({ onEmployeeAdded }) {
                         {e.name}
                       </td>
                       <td className="p-3 text-gray-700">{e.email}</td>
-                      <td className="p-3 text-gray-700">{e.username}</td>
+                      <td className="p-3 text-gray-700">
+                        {e.username || "N/A"}
+                      </td>
                       <td className="p-3">
                         <span
                           className={`px-2 py-1 rounded-full text-xs font-medium ${getRoleBadgeClass(
