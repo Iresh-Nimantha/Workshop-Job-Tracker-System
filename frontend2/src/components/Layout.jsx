@@ -44,7 +44,7 @@ export default function Layout({ children, links = [] }) {
 
       {/* Footer */}
       <footer className="bg-gray-200 text-center py-4 text-sm text-gray-600">
-        &copy; {new Date().getFullYear()} Workshop Job Tracker System
+        &copy; {new Date().getFullYear()} AUTO REPAIR WORKSHOP
       </footer>
     </div>
   );
