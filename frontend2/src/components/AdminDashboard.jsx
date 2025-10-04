@@ -3,6 +3,9 @@ import Layout from "../components/Layout";
 import { getUserRole } from "../libs/auth";
 import api from "../libs/api";
 import { Link, Navigate } from "react-router-dom";
+import { jsPDF } from "jspdf";
+import Swal from "sweetalert2";
+import "jspdf-autotable";
 
 export default function DashboardAdmin() {
   if (getUserRole() !== "Admin") {
@@ -73,13 +76,596 @@ export default function DashboardAdmin() {
     return Math.round((stats.activeJobs / stats.totalJobs) * 100);
   };
 
+  // Store job payment in localStorage when printing report
+  const handlePrintJobReport = async (job) => {
+    const { value: formValues } = await Swal.fire({
+      title: "🧾 Job Payment Details",
+      html: `
+      <style>
+        .swal2-popup {
+          width: 600px !important;
+          padding: 20px 30px;
+        }
+        .expense-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 15px;
+          margin-top: 10px;
+          text-align: left;
+        }
+        .expense-item label {
+          font-weight: 600;
+          font-size: 14px;
+          color: #444;
+        }
+        .expense-item input {
+          width: 100%;
+          padding: 8px;
+          border: 1px solid #ccc;
+          border-radius: 6px;
+          margin-top: 4px;
+          font-size: 13px;
+          transition: border-color 0.2s ease;
+        }
+        .expense-item input:focus {
+          border-color: #3085d6;
+          outline: none;
+        }
+        .swal2-title {
+          font-size: 20px !important;
+          color: #1e293b !important;
+          margin-bottom: 10px !important;
+        }
+        .swal2-confirm {
+          background: linear-gradient(90deg, #2563eb, #3b82f6) !important;
+          border: none !important;
+          border-radius: 8px !important;
+          padding: 10px 25px !important;
+        }
+        .swal2-cancel {
+          background-color: #e5e7eb !important;
+          color: #374151 !important;
+          border-radius: 8px !important;
+        }
+        .total-display {
+          margin-top: 20px;
+          padding: 15px;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          border-radius: 10px;
+          text-align: center;
+          color: white;
+        }
+        .total-display .label {
+          font-size: 13px;
+          opacity: 0.9;
+          margin-bottom: 5px;
+        }
+        .total-display .amount {
+          font-size: 26px;
+          font-weight: bold;
+          letter-spacing: 1px;
+        }
+      </style>
+
+      <div class="expense-grid">
+        <div class="expense-item">
+          <label>Labor Charges</label>
+          <input id="labor" type="number" placeholder="0" class="expense-input" />
+        </div>
+        <div class="expense-item">
+          <label>Spare Parts & Replacements</label>
+          <input id="parts" type="number" placeholder="0" class="expense-input" />
+        </div>
+        <div class="expense-item">
+          <label>Consumables</label>
+          <input id="consumables" type="number" placeholder="0" class="expense-input" />
+        </div>
+        <div class="expense-item">
+          <label>Diagnostic Fees</label>
+          <input id="diagnostic" type="number" placeholder="0" class="expense-input" />
+        </div>
+        <div class="expense-item">
+          <label>Painting & Bodywork</label>
+          <input id="painting" type="number" placeholder="0" class="expense-input" />
+        </div>
+        <div class="expense-item">
+          <label>Service Charges</label>
+          <input id="service" type="number" placeholder="0" class="expense-input" />
+        </div>
+        <div class="expense-item">
+          <label>Towing / Recovery Charges</label>
+          <input id="towing" type="number" placeholder="0" class="expense-input" />
+        </div>
+        <div class="expense-item">
+          <label>Taxes & Govt. Fees</label>
+          <input id="taxes" type="number" placeholder="0" class="expense-input" />
+        </div>
+      </div>
+
+      <div class="total-display">
+        <div class="label">Total Amount</div>
+        <div class="amount" id="totalAmount">Rs. 0.00</div>
+      </div>
+    `,
+      showCancelButton: true,
+      confirmButtonText: "Generate Report",
+      cancelButtonText: "Cancel",
+      focusConfirm: false,
+      didOpen: () => {
+        // Real-time total calculation
+        const inputs = document.querySelectorAll(".expense-input");
+        const totalDisplay = document.getElementById("totalAmount");
+
+        const updateTotal = () => {
+          let total = 0;
+          inputs.forEach((input) => {
+            total += parseFloat(input.value) || 0;
+          });
+          totalDisplay.textContent = `Rs. ${total.toFixed(2)}`;
+        };
+
+        inputs.forEach((input) => {
+          input.addEventListener("input", updateTotal);
+        });
+      },
+      preConfirm: () => {
+        const fields = [
+          "labor",
+          "parts",
+          "consumables",
+          "diagnostic",
+          "painting",
+          "service",
+          "towing",
+          "taxes",
+        ];
+        const values = {};
+        fields.forEach((id) => {
+          values[id] = parseFloat(document.getElementById(id).value || 0);
+        });
+        return values;
+      },
+    });
+
+    if (!formValues) return; // if canceled
+
+    // Calculate total
+    const total = Object.values(formValues).reduce((a, b) => a + b, 0);
+
+    // Generate PDF
+    const doc = new jsPDF();
+
+    // Workshop Header Section
+    doc.setFillColor(41, 128, 185);
+    doc.rect(0, 0, 210, 45, "F");
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(22);
+    doc.setFont(undefined, "bold");
+    doc.text("AUTO REPAIR WORKSHOP", 105, 15, { align: "center" });
+
+    doc.setFontSize(10);
+    doc.setFont(undefined, "normal");
+    doc.text("123 Main Street, Maharagama", 105, 23, { align: "center" });
+    doc.text("Phone: +94 11 234 5678 | Email: info@autorepair.com", 105, 29, {
+      align: "center",
+    });
+    doc.text("Website: www.autorepair.com", 105, 35, { align: "center" });
+
+    // Reset text color
+    doc.setTextColor(0, 0, 0);
+
+    // Job Report Title
+    doc.setFontSize(18);
+    doc.setFont(undefined, "bold");
+    doc.text(`JOB REPORT #${job.id}`, 105, 58, { align: "center" });
+
+    doc.setFontSize(9);
+    doc.setFont(undefined, "normal");
+    doc.text(`Date: ${new Date().toLocaleDateString("en-GB")}`, 105, 65, {
+      align: "center",
+    });
+
+    // Job Details Section
+    doc.setDrawColor(41, 128, 185);
+    doc.setLineWidth(0.5);
+    doc.line(15, 72, 195, 72);
+
+    doc.setFontSize(13);
+    doc.setFont(undefined, "bold");
+    doc.setTextColor(41, 128, 185);
+    doc.text("JOB DETAILS", 15, 80);
+
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(11);
+    doc.setFont(undefined, "normal");
+
+    // Two column layout for job details
+    // Left column
+    doc.setFont(undefined, "bold");
+    doc.text("Customer:", 15, 90);
+    doc.text("Vehicle:", 15, 98);
+    doc.text("Mechanic:", 15, 106);
+
+    doc.setFont(undefined, "normal");
+    doc.text(job.customer?.name || "N/A", 45, 90);
+    doc.text(
+      job.vehicle ? `${job.vehicle.make} ${job.vehicle.model}` : "N/A",
+      45,
+      98
+    );
+    doc.text(job.mechanic?.name || "Unassigned", 45, 106);
+
+    // Right column
+    doc.setFont(undefined, "bold");
+    doc.text("Status:", 110, 90);
+    doc.text("Job ID:", 110, 98);
+
+    doc.setFont(undefined, "normal");
+    doc.text(job.status?.name || "Unknown", 135, 90);
+    doc.text(`#${job.id}`, 135, 98);
+
+    // Description section
+    doc.setFont(undefined, "bold");
+    doc.text("Description:", 15, 114);
+    doc.setFont(undefined, "normal");
+    const description = job.description || "No description provided";
+    const splitDescription = doc.splitTextToSize(description, 170);
+    doc.text(splitDescription, 15, 122);
+
+    // Payment Details Section
+    const paymentStartY = 122 + splitDescription.length * 7;
+
+    doc;
+
+    doc.setFontSize(13);
+    doc.setFont(undefined, "bold");
+    doc.setTextColor(41, 128, 185);
+    doc.text("PAYMENT BREAKDOWN", 15, paymentStartY + 13);
+
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(10);
+
+    // Table header
+    let y = paymentStartY + 22;
+    doc.setFillColor(240, 240, 240);
+    doc.rect(15, y - 5, 180, 8, "F");
+    doc.setFont(undefined, "bold");
+    doc.text("Description", 20, y);
+    doc.text("Amount (Rs.)", 160, y, { align: "right" });
+
+    y += 10;
+    doc.setFont(undefined, "normal");
+
+    // Payment items
+    for (const [key, value] of Object.entries(formValues)) {
+      if (value > 0) {
+        const label = key
+          .replace(/([A-Z])/g, " $1")
+          .replace(/^./, (s) => s.toUpperCase());
+
+        doc.text(label, 20, y);
+        doc.text(value.toFixed(2), 175, y, { align: "right" });
+        y += 7;
+      }
+    }
+
+    // Total section
+    doc.setDrawColor(41, 128, 185);
+    doc.setLineWidth(0.8);
+    doc.line(15, y + 2, 195, y + 2);
+
+    y += 10;
+    doc.setFontSize(13);
+    doc.setFont(undefined, "bold");
+    doc.text("TOTAL AMOUNT:", 20, y);
+    doc.text(`Rs. ${total.toFixed(2)}`, 175, y, { align: "right" });
+
+    // Footer
+    const footerY = 280;
+    doc.setDrawColor(200, 200, 200);
+    doc.line(15, footerY, 195, footerY);
+
+    doc.setFontSize(8);
+    doc.setFont(undefined, "italic");
+    doc.setTextColor(128, 128, 128);
+    doc.text("Thank you for choosing our services!", 105, footerY + 5, {
+      align: "center",
+    });
+    doc.text(
+      "This is a computer-generated document and does not require a signature.",
+      105,
+      footerY + 10,
+      { align: "center" }
+    );
+
+    // Save payment info in localStorage
+    const payments = JSON.parse(localStorage.getItem("jobPayments") || "[]");
+    payments.push({
+      jobId: job.id,
+      amount: total,
+      date: new Date().toISOString().slice(0, 10), // YYYY-MM-DD
+    });
+    localStorage.setItem("jobPayments", JSON.stringify(payments));
+
+    doc.save(`job_report_${job.customer?.name || "N/A"}.pdf`);
+  };
+
   const handleLogout = () => {
     // Clear auth token from localStorage
     localStorage.removeItem("token");
     localStorage.removeItem("role");
     localStorage.removeItem("username");
+    localStorage.removeItem("jobPayments");
     // Redirect to login page
     window.location.href = "/login";
+  };
+
+  // Fetch analytics summary from multiple endpoints and calculate todayRevenue
+  const fetchAnalyticsSummary = async () => {
+    try {
+      const [jobsRes, customersRes, vehiclesRes, mechanicsRes] =
+        await Promise.all([
+          api.get("/repair-jobs"),
+          api.get("/customers"),
+          api.get("/vehicles"),
+          api.get("/users?role=Mechanic"),
+        ]);
+
+      const jobs = jobsRes.data.data || jobsRes.data;
+      const customers = customersRes.data.data || customersRes.data;
+      const vehicles = vehiclesRes.data.data || vehiclesRes.data;
+      const mechanics = mechanicsRes.data.data || mechanicsRes.data;
+      const today = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD" format
+
+      // Instead of filtering by date, consider all jobs as created "today"
+
+      const jobsCreatedToday = jobs.filter(
+        (job) => job.created_at?.slice(0, 10) === today
+      );
+
+      // From all jobs (treated as created today), count how many are completed
+      const jobsCompletedToday = jobsCreatedToday.filter(
+        (job) => job.status?.name === "Completed"
+      );
+
+      // Count unique vehicles serviced among all jobs (today’s jobs = all jobs)
+      const vehiclesServicedToday = [
+        ...new Set(jobsCreatedToday.map((job) => job.vehicle?.id)),
+      ].length;
+
+      // Get today's revenue from payments saved in localStorage filtered by today's date only
+      const todayDate = new Date().toISOString().slice(0, 10);
+      const payments = JSON.parse(localStorage.getItem("jobPayments") || "[]");
+      const todayRevenue = payments
+        .filter((payment) => payment.date === todayDate)
+        .reduce((sum, payment) => sum + (payment.amount || 0), 0);
+
+      return {
+        totalJobs: jobs.length,
+        activeJobs: jobs.filter((job) => job.status?.name === "In Progress")
+          .length,
+        completedJobs: jobs.filter((job) => job.status?.name === "Completed")
+          .length,
+        totalCustomers: customers.length,
+        totalVehicles: vehicles.length,
+        mechanics: mechanics,
+        todayJobs: jobsCreatedToday.length, // Now counts ALL jobs as created today
+        todayCompleted: jobsCompletedToday.length,
+        todayVehicles: vehiclesServicedToday,
+        todayRevenue,
+      };
+    } catch (error) {
+      Swal.fire("Error", "Failed to fetch analytics summary.", "error");
+      return null;
+    }
+  };
+
+  // Update handleAnalyticsSummary to fetch and show the summary
+  const handleAnalyticsSummary = async () => {
+    const summary = await fetchAnalyticsSummary();
+    if (!summary) return;
+
+    const mechanicsCount = Array.isArray(summary?.mechanics)
+      ? summary.mechanics.length
+      : summary.mechanicsCount || 0;
+
+    Swal.fire({
+      title: "📊 Analytics Summary",
+      html: `
+      <div class="text-left text-gray-700 leading-relaxed">
+        <h3 class="font-semibold text-lg mb-2">Overall</h3>
+        <p><strong>Total Jobs:</strong> ${summary?.totalJobs ?? 0}</p>
+        <p><strong>Active Jobs:</strong> ${summary?.activeJobs ?? 0}</p>
+        <p><strong>Completed Jobs:</strong> ${summary?.completedJobs ?? 0}</p>
+        <p><strong>Total Customers:</strong> ${summary?.totalCustomers ?? 0}</p>
+        <p><strong>Total Vehicles:</strong> ${summary?.totalVehicles ?? 0}</p>
+        <p><strong>Mechanics:</strong> ${mechanicsCount}</p>
+        <hr class="my-2"/>
+        <h3 class="font-semibold text-lg mb-2">Today</h3>
+        <p><strong>Jobs Created:</strong> ${summary?.todayJobs ?? 0}</p>
+        <p><strong>Jobs Completed:</strong> ${summary?.todayCompleted ?? 0}</p>
+        <p><strong>Vehicles Serviced:</strong> ${
+          summary?.todayVehicles ?? 0
+        }</p>
+        <p><strong>Revenue:</strong> Rs. ${(summary?.todayRevenue ?? 0).toFixed(
+          2
+        )}</p>
+      </div>
+    `,
+      showCancelButton: true,
+      confirmButtonText: "Download PDF",
+      cancelButtonText: "Close",
+    }).then((result) => {
+      if (result.isConfirmed) {
+        generateAnalyticsPDF(
+          {
+            ...summary,
+            mechanicsCount, // Pass mechanicsCount explicitly
+          },
+          {} // You can pass workshopInfo if available
+        );
+      }
+    });
+  };
+
+  const generateAnalyticsPDF = (summary, workshopInfo = {}) => {
+    const doc = new jsPDF();
+    const lineHeight = 10;
+    let y = 45; // Start below header
+
+    // --- Workshop Header Section ---
+    doc.setFillColor(41, 128, 185);
+    doc.rect(0, 0, 210, 45, "F");
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(22);
+    doc.setFont(undefined, "bold");
+    doc.text("AUTO REPAIR WORKSHOP", 105, 15, { align: "center" });
+
+    doc.setFontSize(10);
+    doc.setFont(undefined, "normal");
+    doc.text("123 Main Street, Maharagama", 105, 23, { align: "center" });
+    doc.text("Phone: +94 11 234 5678 | Email: info@autorepair.com", 105, 29, {
+      align: "center",
+    });
+    doc.text("Website: www.autorepair.com", 105, 35, { align: "center" });
+
+    // --- Analytics Title ---
+    doc.setFontSize(16);
+    doc.setFont(undefined, "bold");
+    doc.text("Analytics Summary", 105, y - 2, { align: "center" });
+    y += lineHeight * 2;
+
+    // Line separator
+    doc.setDrawColor(100);
+    doc.setLineWidth(0.5);
+    doc.line(10, y - 5, 200, y - 5);
+
+    // --- Overall Section ---
+    doc.setFontSize(14);
+    doc.setFont(undefined, "bold");
+    doc.setTextColor(41, 128, 185);
+    doc.text("Overall Statistics", 10, y);
+    doc.setTextColor(0, 0, 0);
+    y += lineHeight;
+
+    // Background shading for overall stats
+    doc.setFillColor(245, 247, 250);
+    doc.rect(10, y - 7, 190, 65, "F");
+
+    doc.setFontSize(12);
+    doc.setFont(undefined, "normal");
+    const overallStats = [
+      ["Total Jobs", summary.totalJobs ?? 0],
+      ["Active Jobs", summary.activeJobs ?? 0],
+      ["Completed Jobs", summary.completedJobs ?? 0],
+      ["Total Customers", summary.totalCustomers ?? 0],
+      ["Total Vehicles", summary.totalVehicles ?? 0],
+      ["Mechanics", summary.mechanicsCount ?? 0],
+    ];
+
+    overallStats.forEach(([label, value], index) => {
+      // Alternate row colors
+      if (index % 2 === 1) {
+        doc.setFillColor(240, 242, 245);
+        doc.rect(10, y - 7, 190, 10, "F");
+      }
+
+      doc.setFont(undefined, "bold");
+      doc.text(`${label}:`, 15, y);
+      doc.setFont(undefined, "normal");
+      doc.text(`${value}`, 85, y);
+      y += lineHeight;
+    });
+
+    y += lineHeight; // extra space before next section
+
+    // Line separator
+    doc.setDrawColor(100);
+    doc.setLineWidth(0.5);
+    doc.line(10, y - 5, 200, y - 5);
+
+    // --- Today Section ---
+    doc.setFontSize(14);
+    doc.setFont(undefined, "bold");
+    doc.setTextColor(16, 185, 129);
+    doc.text("Today Statistics", 10, y);
+    doc.setTextColor(0, 0, 0);
+    y += lineHeight;
+
+    // Background shading for today stats
+    doc.setFillColor(240, 253, 244);
+    doc.rect(10, y - 7, 190, 45, "F");
+
+    doc.setFontSize(12);
+    doc.setFont(undefined, "normal");
+    const todayStats = [
+      ["Jobs Created", summary.todayJobs ?? 0],
+      ["Jobs Completed", summary.todayCompleted ?? 0],
+      ["Vehicles Serviced", summary.todayVehicles ?? 0],
+      ["Revenue", `Rs. ${(summary.todayRevenue ?? 0).toFixed(2)}`],
+    ];
+
+    todayStats.forEach(([label, value], index) => {
+      if (index % 2 === 1) {
+        doc.setFillColor(234, 250, 241);
+        doc.rect(10, y - 7, 190, 10, "F");
+      }
+
+      doc.setFont(undefined, "bold");
+      doc.text(`${label}:`, 15, y);
+      doc.setFont(undefined, "normal");
+      doc.text(`${value}`, 85, y);
+      y += lineHeight;
+    });
+
+    y += lineHeight * 2;
+
+    // Performance metrics box
+    const completionRate =
+      summary.totalJobs > 0
+        ? ((summary.completedJobs / summary.totalJobs) * 100).toFixed(1)
+        : 0;
+    const activeRate =
+      summary.totalJobs > 0
+        ? ((summary.activeJobs / summary.totalJobs) * 100).toFixed(1)
+        : 0;
+
+    doc.setFillColor(237, 233, 254);
+    doc.rect(10, y - 7, 190, 30, "F");
+
+    doc.setFontSize(13);
+    doc.setFont(undefined, "bold");
+    doc.setTextColor(139, 92, 246);
+    doc.text("Performance Metrics", 15, y);
+    doc.setTextColor(0, 0, 0);
+    y += lineHeight;
+
+    doc.setFontSize(12);
+    doc.setFont(undefined, "bold");
+    doc.text("Completion Rate:", 15, y);
+    doc.setFont(undefined, "normal");
+    doc.text(`${completionRate}%`, 85, y);
+    y += lineHeight;
+
+    doc.setFont(undefined, "bold");
+    doc.text("Active Jobs Rate:", 15, y);
+    doc.setFont(undefined, "normal");
+    doc.text(`${activeRate}%`, 85, y);
+
+    // Footer with border
+    doc.setDrawColor(200);
+    doc.line(10, 280, 200, 280);
+
+    doc.setFontSize(10);
+    doc.setFont(undefined, "italic");
+    doc.setTextColor(128, 128, 128);
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, 10, 287);
+    doc.text("Workshop Management System", 105, 287, { align: "center" });
+
+    const timestamp = new Date().toISOString().slice(0, 10);
+    doc.save(`Workshop_Analytics_${timestamp}.pdf`);
   };
 
   if (loading) {
@@ -222,6 +808,14 @@ export default function DashboardAdmin() {
           </section>
 
           {/* KPI Cards */}
+          <div className="flex justify-end mb-2">
+            <button
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold shadow transition"
+              onClick={handleAnalyticsSummary}
+            >
+              Get Analytics Summary
+            </button>
+          </div>
           <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
             <AnalyticsCard
               label="Total Jobs"
@@ -347,6 +941,7 @@ export default function DashboardAdmin() {
                       <th className="p-3 font-semibold">Vehicle</th>
                       <th className="p-3 font-semibold">Mechanic</th>
                       <th className="p-3 font-semibold">Status</th>
+                      <th className="p-3 font-semibold">Report</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -369,6 +964,14 @@ export default function DashboardAdmin() {
                         </td>
                         <td className="p-3">
                           <StatusBadge status={job.status?.name || "Unknown"} />
+                        </td>
+                        <td className="p-3">
+                          <button
+                            className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded"
+                            onClick={() => handlePrintJobReport(job)}
+                          >
+                            Print PDF
+                          </button>
                         </td>
                       </tr>
                     ))}
