@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Navigate } from "react-router-dom";
 import { getUserRole } from "../libs/auth";
 import api from "../libs/api";
+import Swal from "sweetalert2";
 
 const STATUS_OPTIONS = [
   { id: 1, label: "Received" },
@@ -71,23 +72,37 @@ const DashboardMechanic = () => {
   };
 
   const handleUpdateJobStatus = async (jobId, newStatusId) => {
-    try {
-      await api.patch(`/repair-jobs/${jobId}/status`, {
-        status_id: newStatusId,
-      });
-      setJobs((prev) =>
-        prev.map((job) =>
-          job.id === jobId
-            ? {
-                ...job,
-                status_id: newStatusId,
-                status: getStatusLabelById(newStatusId),
-              }
-            : job
-        )
-      );
-    } catch {
-      alert("Failed to update job status.");
+    const newStatusLabel = getStatusLabelById(newStatusId);
+
+    const result = await Swal.fire({
+      title: `Change job status?`,
+      html: `Are you sure you want to change this job's status to <strong>${newStatusLabel}</strong>?`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, update it",
+      cancelButtonText: "Cancel",
+    });
+
+    if (result.isConfirmed) {
+      try {
+        await api.patch(`/repair-jobs/${jobId}/status`, {
+          status_id: newStatusId,
+        });
+        setJobs((prev) =>
+          prev.map((job) =>
+            job.id === jobId
+              ? {
+                  ...job,
+                  status_id: newStatusId,
+                  status: newStatusLabel,
+                }
+              : job
+          )
+        );
+        Swal.fire("Updated!", "Job status has been updated.", "success");
+      } catch {
+        Swal.fire("Error", "Failed to update job status.", "error");
+      }
     }
   };
 
@@ -256,19 +271,18 @@ const DashboardMechanic = () => {
                       </select>
                       <button
                         onClick={() =>
-                          alert(
-                            `Job ${job.id}\nCustomer: ${
-                              job.customer?.name ?? "Unknown"
-                            }\nVehicle: ${
-                              job.vehicle
-                                ? `${job.vehicle.make} ${job.vehicle.model}`
-                                : "Unknown"
-                            }\nDescription: ${job.description ?? "N/A"}
-                            
-                        
-                            
-                            \nStatus: ${getStatusLabelById(safeStatusId(job))}`
-                          )
+                          Swal.fire({
+                            title: `Job #${job.id} Details`,
+                            html: `
+        <p><strong>Customer:</strong> ${job.customer?.name ?? "Unknown"}</p>
+        <p><strong>Vehicle:</strong> ${
+          job.vehicle ? `${job.vehicle.make} ${job.vehicle.model}` : "Unknown"
+        }</p>
+        <p><strong>Description:</strong> ${job.description ?? "N/A"}</p>
+        <p><strong>Status:</strong> ${getStatusLabelById(safeStatusId(job))}</p>
+      `,
+                            confirmButtonText: "Close",
+                          })
                         }
                         className="border border-gray-300 px-3 py-1 rounded text-xs hover:bg-gray-100"
                       >
